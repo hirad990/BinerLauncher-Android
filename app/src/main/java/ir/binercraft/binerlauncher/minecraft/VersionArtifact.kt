@@ -15,6 +15,7 @@ data class ResolvedVersion(
     val javaMajor: Int,
     val client: VersionArtifact,
     val libraries: List<VersionArtifact>,
-    val assetIndexUrl: String?,
-    val assetIndexId: String?
+    val natives: List<VersionArtifact> = emptyList(),
+    val assetIndexUrl: String? = null,
+    val assetIndexId: String? = null
 )
