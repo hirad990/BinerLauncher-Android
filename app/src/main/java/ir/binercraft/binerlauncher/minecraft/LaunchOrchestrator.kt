@@ -3,17 +3,16 @@ package ir.binercraft.binerlauncher.minecraft
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
-/** Coordinates the final install -> plan -> execute path for a Minecraft instance. */
+/** Final install -> resolve -> plan -> execute bridge used by the launcher UI. */
 class LaunchOrchestrator(context: Context) {
     private val paths = MinecraftPaths(context)
-    private val runtimeManager = ir.binercraft.binerlauncher.runtime.JavaRuntimeManager(context)
-    private val planner = MinecraftLaunchPlanner(paths, runtimeManager)
+    private val runtimes = ir.binercraft.binerlauncher.runtime.JavaRuntimeManager(context)
+    private val planner = MinecraftLaunchPlanner(paths, runtimes)
     private val executor = MinecraftLaunchExecutor()
 
     data class Result(
-        val command: List<String>,
+        val plan: LaunchPlan,
         val process: Process
     )
 
@@ -22,35 +21,43 @@ class LaunchOrchestrator(context: Context) {
         username: String,
         uuid: String,
         accessToken: String = "0",
+        userType: String = "mojang",
+        xuid: String? = null,
+        clientId: String? = null,
         width: Int = 1280,
         height: Int = 720,
-        maxMemoryMb: Int = 2048,
+        memoryMb: Int = 2048,
         extraJvmArgs: List<String> = emptyList(),
         extraGameArgs: List<String> = emptyList()
     ): Result = withContext(Dispatchers.IO) {
         paths.ensureDirectories()
         val resolved = VersionResolver(paths).resolve(versionId)
-        require(resolved.clientPath(paths).isFile) {
+
+        require(paths.clientJar(versionId).isFile) {
             "Minecraft client is not installed: $versionId"
         }
-        require(runtimeManager.isInstalled(resolved.javaMajor)) {
+        require(runtimes.isInstalled(resolved.javaMajor)) {
             "Java ${resolved.javaMajor} runtime is not installed"
         }
 
-        val plan = planner.createPlan(
-            version = resolved,
+        val profile = LaunchProfile(
             username = username,
             uuid = uuid,
             accessToken = accessToken,
+            userType = userType,
+            xuid = xuid,
+            clientId = clientId
+        )
+        val options = LaunchOptions(
+            memoryMb = memoryMb,
             width = width,
             height = height,
-            maxMemoryMb = maxMemoryMb,
             extraJvmArgs = extraJvmArgs,
             extraGameArgs = extraGameArgs
         )
-        val process = executor.start(plan)
-        Result(plan.command, process)
-    }
 
-    private fun ResolvedVersion.clientPath(paths: MinecraftPaths): File = paths.clientJar(id)
+        val plan = planner.plan(resolved, profile, options)
+        val process = executor.launch(plan)
+        Result(plan, process)
+    }
 }
