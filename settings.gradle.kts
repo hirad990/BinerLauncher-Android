@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BinerLauncher-Android"
 include(":app")
+include(":launcher-core")
