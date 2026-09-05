@@ -9,10 +9,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
 
-/** Installs an official Minecraft Java version manifest and its client/libraries. */
+/** Installs an official Minecraft Java version and its required runtime artifacts. */
 class MinecraftInstaller(
     private val paths: MinecraftPaths,
-    private val downloader: ArtifactDownloader = ArtifactDownloader()
+    private val downloader: ArtifactDownloader = ArtifactDownloader(),
+    private val assetInstaller: AssetInstaller = AssetInstaller(paths)
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -38,18 +39,19 @@ class MinecraftInstaller(
         )
         downloader.download(clientArtifact, paths.clientJar(versionId))
 
-        val libraries = root["libraries"]?.let { element ->
-            element.jsonObject
+        val resolved = VersionResolver(paths).resolve(versionId)
+        resolved.libraries.forEach { artifact ->
+            downloader.download(artifact, File(paths.libraries, artifact.path))
         }
-
-        // Library installation is intentionally delegated to the resolver in the next stage.
-        // Keeping the metadata on disk makes installation resumable and version-accurate.
-        VersionResolver(paths).resolve(versionId).also { resolved ->
-            resolved.libraries.forEach { artifact ->
-                val destination = File(paths.libraries, artifact.path)
-                downloader.download(artifact, destination)
-            }
+        resolved.natives.forEach { artifact ->
+            val nativeJar = File(paths.libraries, artifact.path)
+            downloader.download(artifact, nativeJar)
+            NativeExtractor.extract(nativeJar, File(paths.natives, versionId))
         }
+        if (resolved.assetIndexUrl != null && resolved.assetIndexId != null) {
+            assetInstaller.install(resolved.assetIndexUrl, resolved.assetIndexId)
+        }
+        resolved
     }
 
     private fun fetchText(url: String): String {
