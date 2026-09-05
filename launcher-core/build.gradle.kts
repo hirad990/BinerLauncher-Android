@@ -1,6 +1,6 @@
 plugins {
     `java-library`
-    kotlin("jvm") version "2.3.21"
+    id("org.jetbrains.kotlin.jvm")
 }
 
 group = "ir.binercraft"
