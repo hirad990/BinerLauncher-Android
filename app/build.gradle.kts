@@ -5,13 +5,13 @@ plugins {
 
 android {
     namespace = "ir.binercraft.binerlauncher"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
         applicationId = "ir.binercraft.binerlauncher"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 2
         versionName = "0.2.0"
 
