@@ -24,9 +24,32 @@ jobs:
           java-version: '17'
 
       - name: Prepare Android SDK
+        shell: bash
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0" "cmake;3.22.1" "ndk;29.0.14206865"
+          set -euo pipefail
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          echo "Checking available Android SDK packages..."
+          "$SDKMANAGER" --version
+          "$SDKMANAGER" --list | grep -E 'platforms;android-(37|36)|build-tools;3[67]\.0\.0|ndk;29\.0\.14206865|cmake;3\.22\.1' || true
+
+          echo "Accepting Android SDK licenses..."
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          echo "Installing required SDK packages..."
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;36.0.0" \
+            "cmake;3.22.1" \
+            "ndk;29.0.14206865"
+
+          echo "Verifying Android SDK installation..."
+          test -d "$ANDROID_HOME/platforms/android-37"
+          test -d "$ANDROID_HOME/build-tools/36.0.0"
+          test -d "$ANDROID_HOME/ndk/29.0.14206865"
+          test -d "$ANDROID_HOME/cmake/3.22.1"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
