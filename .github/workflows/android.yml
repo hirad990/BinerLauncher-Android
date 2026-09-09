@@ -35,7 +35,7 @@ jobs:
 
           echo "Refreshing Android SDK package metadata..."
           "$SDKMANAGER" --list > /tmp/sdkmanager-list.txt
-          grep -E 'platforms;android-37\.(0|1|2)|build-tools;37\.0\.0|build-tools;36\.0\.0|ndk;29\.0\.14206865|cmake;3\.22\.1' /tmp/sdkmanager-list.txt || true
+          grep -E 'platforms;android-37\.(0|1|2)|build-tools;37\.0\.0|ndk;29\.0\.14206865|cmake;3\.22\.1' /tmp/sdkmanager-list.txt || true
 
           echo "Accepting Android SDK licenses..."
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -48,8 +48,14 @@ jobs:
             "cmake;3.22.1" \
             "ndk;29.0.14206865"
 
+          echo "Normalizing Android 37 SDK path for Gradle/AGP..."
+          if [ ! -e "$ANDROID_HOME/platforms/android-37" ]; then
+            ln -s "$ANDROID_HOME/platforms/android-37.0" "$ANDROID_HOME/platforms/android-37"
+          fi
+
           echo "Verifying Android SDK installation..."
-          test -d "$ANDROID_HOME/platforms/android-37.0"
+          test -d "$ANDROID_HOME/platforms/android-37"
+          test -f "$ANDROID_HOME/platforms/android-37/android.jar"
           test -d "$ANDROID_HOME/build-tools/37.0.0"
           test -d "$ANDROID_HOME/ndk/29.0.14206865"
           test -d "$ANDROID_HOME/cmake/3.22.1"
