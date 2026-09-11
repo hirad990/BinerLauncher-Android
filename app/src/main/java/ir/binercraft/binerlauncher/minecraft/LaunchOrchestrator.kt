@@ -1,13 +1,13 @@
 package ir.binercraft.binerlauncher.minecraft
 
 import android.content.Context
+import ir.binercraft.binerlauncher.runtime.JavaRuntimeManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Final install -> resolve -> plan -> execute bridge used by the launcher UI. */
 class LaunchOrchestrator(context: Context) {
     private val paths = MinecraftPaths(context)
-    private val runtimes = ir.binercraft.binerlauncher.runtime.JavaRuntimeManager(context)
+    private val runtimes = JavaRuntimeManager(context)
     private val planner = MinecraftLaunchPlanner(paths, runtimes)
     private val executor = MinecraftLaunchExecutor()
     private val installer = MinecraftInstaller(paths)
@@ -27,25 +27,29 @@ class LaunchOrchestrator(context: Context) {
         height: Int = 720,
         memoryMb: Int = 2048,
         extraJvmArgs: List<String> = emptyList(),
-        extraGameArgs: List<String> = emptyList()
+        extraGameArgs: List<String> = emptyList(),
+        onProgress: (String) -> Unit = {}
     ): Result = withContext(Dispatchers.IO) {
         paths.ensureDirectories()
-
+        onProgress("Checking Minecraft $versionId")
         if (!paths.versionJson(versionId).isFile || !paths.clientJar(versionId).isFile) {
+            onProgress("Downloading Minecraft $versionId")
             val url = metadataUrl ?: MinecraftVersionRepository().fetchVersions()
                 .firstOrNull { it.id == versionId }?.url
                 ?: error("Minecraft metadata URL not found for $versionId")
             installer.install(versionId, url)
         }
-
         val resolved = VersionResolver(paths).resolve(versionId)
-        require(runtimes.isInstalled(resolved.javaMajor)) {
-            "Java ${resolved.javaMajor} runtime is not installed. Install the Android-compatible Java runtime for this Minecraft version first."
+        onProgress("Preparing Java ${resolved.javaMajor}")
+        runtimes.installIfMissing(resolved.javaMajor) { progress ->
+            val percent = if (progress.fraction > 0f) " ${(progress.fraction * 100).toInt()}%" else ""
+            onProgress(progress.stage + percent)
         }
-
+        onProgress("Preparing game files")
         val profile = LaunchProfile(username, uuid, accessToken, userType, xuid, clientId)
         val options = LaunchOptions(memoryMb, width, height, extraJvmArgs, extraGameArgs)
         val plan = planner.plan(resolved, profile, options)
+        onProgress("Launching Minecraft")
         Result(plan, executor.launch(plan))
     }
 }
