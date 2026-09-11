@@ -9,17 +9,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
-class MinecraftLaunchPlanner(
-    private val paths: MinecraftPaths,
-    private val runtimes: JavaRuntimeManager
-) {
+class MinecraftLaunchPlanner(private val paths: MinecraftPaths, private val runtimes: JavaRuntimeManager) {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun plan(version: ResolvedVersion, profile: LaunchProfile, options: LaunchOptions = LaunchOptions()): LaunchPlan {
         require(profile.username.isNotBlank()) { "Username is required" }
         require(profile.uuid.isNotBlank()) { "UUID is required" }
         require(options.memoryMb >= 512) { "Memory must be at least 512 MB" }
-
         val runtime = runtimes.javaExecutable(version.javaMajor)
         require(runtime.isFile) { "Java ${version.javaMajor} is not installed: ${runtime.absolutePath}" }
         paths.ensureDirectories()
@@ -37,24 +33,24 @@ class MinecraftLaunchPlanner(
         val runtimeRoot = runtime.parentFile.parentFile
 
         val jvmArgs = buildList {
-            add("-Xms512M")
-            add("-Xmx${options.memoryMb}M")
+            add("-Xms512M"); add("-Xmx${options.memoryMb}M")
             add("-Djava.library.path=${nativesDirectory.absolutePath}")
             add("-Dorg.lwjgl.librarypath=${nativesDirectory.absolutePath}")
             add("-Djava.io.tmpdir=${tempDirectory.absolutePath}")
             add("-Duser.home=${paths.root.absolutePath}")
-            add("-Dminecraft.launcher.brand=BinerLauncher")
-            add("-Dminecraft.launcher.version=0.2.0")
+            add("-Dminecraft.launcher.brand=BinerLauncher"); add("-Dminecraft.launcher.version=0.2.0")
             addAll(resolveArguments(metadata["arguments"]?.jsonObject?.get("jvm")?.jsonArray, placeholders))
             addAll(options.extraJvmArgs)
         }
-        val gameArgs = if (metadata["arguments"]?.jsonObject?.get("game")?.jsonArray != null) {
+
+        val gameArgs = (if (metadata["arguments"]?.jsonObject?.get("game")?.jsonArray != null) {
             resolveArguments(metadata["arguments"]?.jsonObject?.get("game")?.jsonArray, placeholders)
-        } else parseLegacyArguments(metadata["minecraftArguments"]?.jsonPrimitive?.content.orEmpty(), placeholders)
-            .toMutableList().apply {
-                addAll(listOf("--width", options.width.toString(), "--height", options.height.toString()))
-                addAll(options.extraGameArgs)
-            }
+        } else {
+            parseLegacyArguments(metadata["minecraftArguments"]?.jsonPrimitive?.content.orEmpty(), placeholders)
+        }).toMutableList().apply {
+            addAll(listOf("--width", options.width.toString(), "--height", options.height.toString()))
+            addAll(options.extraGameArgs)
+        }
 
         val command = buildList {
             add(runtime.absolutePath); addAll(jvmArgs); add("-cp"); add(classpath); add(version.mainClass); addAll(gameArgs)
@@ -63,17 +59,13 @@ class MinecraftLaunchPlanner(
             .filter { it.isNotBlank() }.joinToString(File.pathSeparator)
 
         return LaunchPlan(
-            javaExecutable = runtime,
-            workingDirectory = gameDirectory,
-            command = command,
+            javaExecutable = runtime, workingDirectory = gameDirectory, command = command,
             environment = mapOf(
-                "JAVA_HOME" to runtimeRoot.absolutePath,
-                "HOME" to paths.root.absolutePath,
+                "JAVA_HOME" to runtimeRoot.absolutePath, "HOME" to paths.root.absolutePath,
                 "TMPDIR" to tempDirectory.absolutePath,
                 "PATH" to runtime.parentFile.absolutePath + File.pathSeparator + (System.getenv("PATH") ?: ""),
                 "LD_LIBRARY_PATH" to nativePath
-            ),
-            version = version
+            ), version = version
         )
     }
 
@@ -103,13 +95,11 @@ class MinecraftLaunchPlanner(
         return result
     }
 
-    private fun parseLegacyArguments(raw: String, placeholders: Map<String, String>) =
-        raw.trim().split(Regex("\\s+")).filter(String::isNotBlank).map { substitute(it, placeholders) }
+    private fun parseLegacyArguments(raw: String, placeholders: Map<String, String>) = raw.trim().split(Regex("\\s+"))
+        .filter(String::isNotBlank).map { substitute(it, placeholders) }
 
     private fun substitute(value: String, placeholders: Map<String, String>): String {
-        var result = value
-        placeholders.forEach { (key, replacement) -> result = result.replace("\${$key}", replacement) }
-        return result
+        var result = value; placeholders.forEach { (key, replacement) -> result = result.replace("\${$key}", replacement) }; return result
     }
 
     private fun rulesAllow(rules: JsonArray?): Boolean {
