@@ -14,6 +14,7 @@ class MinecraftPaths(context: Context) {
     fun versionDirectory(id: String): File = File(versions, id)
     fun versionJson(id: String): File = File(versionDirectory(id), "$id.json")
     fun clientJar(id: String): File = File(versionDirectory(id), "$id.jar")
+    fun modsDirectory(id: String): File = File(instances, "$id/mods")
 
     fun ensureDirectories() {
         listOf(root, versions, libraries, assets, natives, instances).forEach(File::mkdirs)
