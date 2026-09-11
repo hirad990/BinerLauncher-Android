@@ -23,6 +23,7 @@ import ir.binercraft.binerlauncher.minecraft.MinecraftPaths
 import ir.binercraft.binerlauncher.minecraft.MinecraftVersionRepository
 import ir.binercraft.binerlauncher.minecraft.ModrinthService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -122,6 +123,7 @@ private fun VersionsScreen(selectedVersion: String, onSelect: (String) -> Unit, 
 @Composable
 private fun ModsScreen(version: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var loader by remember { mutableStateOf("fabric") }
     var results by remember { mutableStateOf<List<ModrinthService.ModResult>>(emptyList()) }
@@ -139,9 +141,13 @@ private fun ModsScreen(version: String, modifier: Modifier = Modifier) {
         }
         Button(onClick = {
             if (query.isBlank()) return@Button
-            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                try { val found = ModrinthService(MinecraftPaths(context)).search(query, version, loader); withContext(Dispatchers.Main) { results = found; message = "${found.size} نتیجه" } }
-                catch (t: Throwable) { withContext(Dispatchers.Main) { message = t.message ?: "خطا" } }
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val found = ModrinthService(MinecraftPaths(context)).search(query, version, loader)
+                    withContext(Dispatchers.Main) { results = found; message = "${found.size} نتیجه" }
+                } catch (t: Throwable) {
+                    withContext(Dispatchers.Main) { message = t.message ?: "خطا" }
+                }
             }
         }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) { Text("جستجو در Modrinth") }
         Text(message, color = Color(0xFF9BA3B5))
@@ -152,9 +158,13 @@ private fun ModsScreen(version: String, modifier: Modifier = Modifier) {
                         Column(Modifier.weight(1f)) { Text(mod.title, color = Color.White, fontWeight = FontWeight.Bold); Text(mod.description, color = Color(0xFF9BA3B5), maxLines = 2) }
                         Spacer(Modifier.width(8.dp))
                         Button(onClick = {
-                            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-                                try { ModrinthService(MinecraftPaths(context)).installLatest(mod.projectId, version, loader); withContext(Dispatchers.Main) { message = "${mod.title} نصب شد" } }
-                                catch (t: Throwable) { withContext(Dispatchers.Main) { message = t.message ?: "خطای نصب" } }
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    ModrinthService(MinecraftPaths(context)).installLatest(mod.projectId, version, loader)
+                                    withContext(Dispatchers.Main) { message = "${mod.title} نصب شد" }
+                                } catch (t: Throwable) {
+                                    withContext(Dispatchers.Main) { message = t.message ?: "خطای نصب" }
+                                }
                             }
                         }) { Text("نصب") }
                     }
