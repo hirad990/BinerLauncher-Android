@@ -3,15 +3,18 @@ package ir.binercraft.binerlauncher.game
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
-import androidx.lifecycle.lifecycleScope
 import ir.binercraft.binerlauncher.minecraft.LaunchOrchestrator
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Launches the installed Minecraft process and keeps the game surface alive. */
 class LaunchGameActivity : ComponentActivity() {
     private var process: Process? = null
+    private val launchScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,7 +26,7 @@ class LaunchGameActivity : ComponentActivity() {
         val username = intent.getStringExtra(EXTRA_USERNAME) ?: "Player"
         val uuid = intent.getStringExtra(EXTRA_UUID) ?: "00000000-0000-0000-0000-000000000000"
 
-        lifecycleScope.launch {
+        launchScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
                     LaunchOrchestrator(this@LaunchGameActivity).launch(
@@ -40,12 +43,13 @@ class LaunchGameActivity : ComponentActivity() {
                 }
             } catch (error: Throwable) {
                 android.util.Log.e("BinerLauncher", "Minecraft launch failed", error)
-                finish()
+                if (!isFinishing) finish()
             }
         }
     }
 
     override fun onDestroy() {
+        launchScope.cancel()
         process?.takeIf { it.isAlive }?.destroy()
         process = null
         super.onDestroy()
