@@ -14,6 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
+import java.io.InputStream
 
 class JavaRuntimeManager(private val context: Context) {
     data class RuntimeInfo(val major: Int, val root: File, val executable: File, val installed: Boolean)
@@ -23,15 +24,13 @@ class JavaRuntimeManager(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
-        // Runtime metadata lives in this repository; the actual JRE archives are
-        // downloaded directly from the upstream GitHub release assets.
         const val DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/hirad990/BinerLauncher-Android/main/runtime-manifest.json"
     }
 
     fun runtimeRoot(javaMajor: Int): File = File(runtimesDir, "jre$javaMajor")
     fun javaExecutable(javaMajor: Int): File = File(runtimeRoot(javaMajor), "bin/java")
     fun inspect(javaMajor: Int): RuntimeInfo = RuntimeInfo(javaMajor, runtimeRoot(javaMajor), javaExecutable(javaMajor), isInstalled(javaMajor))
-    fun isInstalled(javaMajor: Int): Boolean = javaExecutable(javaMajor).isFile
+    fun isInstalled(javaMajor: Int): Boolean = javaExecutable(javaMajor).isFile && javaExecutable(javaMajor).canExecute()
     fun installedJavaVersions(): List<Int> = listOf(8, 17, 21).filter(::isInstalled)
 
     fun currentAbi(): String = when {
@@ -54,23 +53,20 @@ class JavaRuntimeManager(private val context: Context) {
         } ?: error("No Android Java $javaMajor runtime is available for ${currentAbi()}")
 
         runtimesDir.mkdirs()
-        val temp = File(runtimesDir, ".jre$javaMajor.download")
-        val archive = File(runtimesDir, ".jre$javaMajor.${pkg.archive}")
+        val partial = File(runtimesDir, ".jre$javaMajor.download")
+        val archive = File(runtimesDir, ".jre$javaMajor.archive")
         val target = runtimeRoot(javaMajor)
         val staging = File(runtimesDir, ".jre$javaMajor.staging")
 
-        onProgress(Progress("Downloading Java $javaMajor", 0, -1, 0f))
-        download(pkg.url, temp, onProgress)
-        verifySha256(temp, pkg.sha256)
-        if (!temp.renameTo(archive)) {
-            temp.copyTo(archive, overwrite = true)
-            temp.delete()
-        }
+        onProgress(Progress("Preparing Java $javaMajor", 0, -1, 0f))
+        downloadResumable(pkg.url, partial, onProgress)
+        verifySha256(partial, pkg.sha256)
+        archive.delete()
+        check(partial.renameTo(archive)) { "Unable to prepare Java archive" }
 
         staging.deleteRecursively()
         staging.mkdirs()
-        onProgress(Progress("Installing Java $javaMajor", 0, 1, 0f))
-
+        onProgress(Progress("Extracting Java $javaMajor", 0, 1, 0f))
         when (pkg.archive.lowercase()) {
             "zip" -> unzip(archive, staging)
             "tar.xz", "txz" -> untarXz(archive, staging)
@@ -81,47 +77,60 @@ class JavaRuntimeManager(private val context: Context) {
         target.deleteRecursively()
         if (!root.renameTo(target)) root.copyRecursively(target, overwrite = true)
         makeRuntimeExecutables(target)
-
+        File(target, ".biner-runtime-version").writeText(pkg.version)
         check(isInstalled(javaMajor)) { "Java $javaMajor installation is incomplete" }
+
         staging.deleteRecursively()
         archive.delete()
-        temp.delete()
+        partial.delete()
         onProgress(Progress("Java $javaMajor ready", 1, 1, 1f))
     }
 
     private fun downloadText(url: String): String = URL(url).openStream().bufferedReader().use { it.readText() }
 
-    private fun download(url: String, destination: File, onProgress: (Progress) -> Unit) {
-        val c = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 20_000
-            readTimeout = 60_000
-            instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "BinerLauncher/0.2")
-        }
-        c.connect()
-        if (c.responseCode !in 200..299) error("Runtime download failed: HTTP ${c.responseCode}")
-        val total = c.contentLengthLong
-        var done = 0L
-        FileOutputStream(destination).use { out ->
-            c.inputStream.use { input ->
-                val buffer = ByteArray(64 * 1024)
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n <= 0) break
-                    out.write(buffer, 0, n)
-                    done += n
-                    onProgress(Progress("Downloading Java", done, total, if (total > 0) done.toFloat() / total else 0f))
+    private fun downloadResumable(url: String, destination: File, onProgress: (Progress) -> Unit) {
+        var offset = if (destination.isFile) destination.length() else 0L
+        var connection: HttpURLConnection? = null
+        try {
+            connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 20_000
+                readTimeout = 120_000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "BinerLauncher/0.2")
+                if (offset > 0) setRequestProperty("Range", "bytes=$offset-")
+            }
+            connection.connect()
+            var append = offset > 0 && connection.responseCode == HttpURLConnection.HTTP_PARTIAL
+            if (!append) {
+                if (offset > 0) destination.delete()
+                offset = 0
+            }
+            if (connection.responseCode !in 200..299) error("Runtime download failed: HTTP ${connection.responseCode}")
+            val length = connection.contentLengthLong
+            val total = if (length >= 0) length + offset else -1L
+            var done = offset
+            FileOutputStream(destination, append).use { out ->
+                connection.inputStream.use { input ->
+                    val buffer = ByteArray(128 * 1024)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n <= 0) break
+                        out.write(buffer, 0, n)
+                        done += n
+                        onProgress(Progress("Downloading Java", done, total, if (total > 0) done.toFloat() / total else 0f))
+                    }
                 }
             }
+        } finally {
+            connection?.disconnect()
         }
-        c.disconnect()
     }
 
     private fun verifySha256(file: File, expected: String) {
         require(expected.matches(Regex("[0-9a-fA-F]{64}"))) { "Invalid runtime SHA-256" }
         val digest = MessageDigest.getInstance("SHA-256")
         FileInputStream(file).use { input ->
-            val buffer = ByteArray(64 * 1024)
+            val buffer = ByteArray(128 * 1024)
             while (true) {
                 val n = input.read(buffer)
                 if (n <= 0) break
@@ -152,17 +161,10 @@ class JavaRuntimeManager(private val context: Context) {
         }
     }
 
-    private fun extractEntry(
-        name: String,
-        directory: Boolean,
-        input: java.io.InputStream,
-        destination: File
-    ) {
+    private fun extractEntry(name: String, directory: Boolean, input: InputStream, destination: File) {
         val safe = File(destination, name)
         require(safe.canonicalPath.startsWith(destination.canonicalPath + File.separator)) { "Unsafe runtime archive" }
-        if (directory) {
-            safe.mkdirs()
-        } else {
+        if (directory) safe.mkdirs() else {
             safe.parentFile?.mkdirs()
             FileOutputStream(safe).use { input.copyTo(it) }
         }
@@ -174,8 +176,7 @@ class JavaRuntimeManager(private val context: Context) {
 
     private fun locateRuntimeRoot(staging: File): File {
         if (File(staging, "bin/java").isFile) return staging
-        return staging.listFiles().orEmpty().firstOrNull {
-            it.isDirectory && File(it, "bin/java").isFile
-        } ?: error("Runtime archive does not contain bin/java")
+        return staging.walkTopDown().firstOrNull { it.isDirectory && File(it, "bin/java").isFile }
+            ?: error("Runtime archive does not contain bin/java")
     }
 }
