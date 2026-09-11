@@ -19,7 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ir.binercraft.binerlauncher.core.MinecraftVersion
 import ir.binercraft.binerlauncher.game.LaunchGameActivity
+import ir.binercraft.binerlauncher.minecraft.MinecraftPaths
 import ir.binercraft.binerlauncher.minecraft.MinecraftVersionRepository
+import ir.binercraft.binerlauncher.minecraft.ModrinthService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -32,7 +34,6 @@ class MainActivity : ComponentActivity() {
 
 private val Background = Color(0xFF090B12)
 private val SurfaceDark = Color(0xFF111522)
-private val Accent = Color(0xFF6C63FF)
 private val Accent2 = Color(0xFF22D3EE)
 
 @Composable
@@ -52,8 +53,8 @@ fun BinerLauncherApp() {
                 when (selected) {
                     0 -> HomeScreen(selectedVersion, Modifier.padding(padding))
                     1 -> VersionsScreen(selectedVersion, { selectedVersion = it }, Modifier.padding(padding))
-                    2 -> PlaceholderScreen("مدیریت مودها", Icons.Default.Extension, Modifier.padding(padding))
-                    else -> PlaceholderScreen("تنظیمات لانچر", Icons.Default.Tune, Modifier.padding(padding))
+                    2 -> ModsScreen(selectedVersion, Modifier.padding(padding))
+                    else -> SettingsScreen(Modifier.padding(padding))
                 }
             }
         }
@@ -73,11 +74,7 @@ private fun HomeScreen(version: String, modifier: Modifier = Modifier) {
         item {
             Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF171C2B))) {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Gamepad, null, tint = Accent2, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.width(14.dp))
-                        Column { Text("Minecraft Java", color = Color.White, fontWeight = FontWeight.Bold); Text("نسخه $version", color = Accent2) }
-                    }
+                    Text("نسخه $version", color = Accent2, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(18.dp))
                     Button(onClick = {
                         context.startActivity(Intent(context, LaunchGameActivity::class.java).apply {
@@ -86,21 +83,14 @@ private fun HomeScreen(version: String, modifier: Modifier = Modifier) {
                             putExtra(LaunchGameActivity.EXTRA_UUID, "00000000-0000-0000-0000-000000000000")
                         })
                     }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
-                        Icon(Icons.Default.PlayArrow, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("PLAY")
+                        Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text("PLAY")
                     }
                 }
             }
         }
-        item {
-            Text("هسته‌های آماده", color = Color.White, fontWeight = FontWeight.Bold)
-            StatusCard("Version Manifest", "فعال", Accent2)
-            StatusCard("Client / Libraries / Assets", "فعال", Accent2)
-            StatusCard("Java Runtime Manager", "فعال", Accent2)
-            StatusCard("Launch Planner / Executor", "فعال", Accent2)
-            StatusCard("Android Native Surface", "فعال", Accent2)
-        }
+        item { StatusCard("Release versions", "1.7.10 → 26.2", Accent2) }
+        item { StatusCard("Modrinth", "فعال", Accent2) }
+        item { StatusCard("Install → Prepare → Launch", "فعال", Accent2) }
     }
 }
 
@@ -115,16 +105,13 @@ private fun VersionsScreen(selectedVersion: String, onSelect: (String) -> Unit, 
         finally { loading = false }
     }
     LazyColumn(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Text("نسخه‌های Minecraft", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
-            Text("نسخه انتخابی: $selectedVersion", color = Accent2)
-        }
-        if (loading) item { Text("در حال دریافت لیست نسخه‌ها…", color = Accent2) }
+        item { Text("نسخه‌های Release", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold); Text("1.7.10 تا 26.2", color = Accent2) }
+        if (loading) item { Text("در حال دریافت…", color = Accent2) }
         error?.let { item { Text("خطا: $it", color = Color(0xFFFF6B6B)) } }
-        items(versions.take(60), key = { it.id }) { version ->
+        items(versions, key = { it.id }) { version ->
             Card(colors = CardDefaults.cardColors(containerColor = SurfaceDark), shape = RoundedCornerShape(16.dp)) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column { Text(version.id, color = Color.White, fontWeight = FontWeight.Bold); Text(version.type, color = Color(0xFF9BA3B5)) }
+                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column { Text(version.id, color = Color.White, fontWeight = FontWeight.Bold); Text("release", color = Color(0xFF9BA3B5)) }
                     Button(onClick = { onSelect(version.id) }, shape = RoundedCornerShape(12.dp)) { Text(if (version.id == selectedVersion) "انتخاب شد" else "انتخاب") }
                 }
             }
@@ -133,19 +120,75 @@ private fun VersionsScreen(selectedVersion: String, onSelect: (String) -> Unit, 
 }
 
 @Composable
-private fun StatusCard(title: String, state: String, color: Color) {
-    Card(Modifier.fillMaxWidth().padding(top = 8.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = SurfaceDark)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(title, color = Color(0xFFDDE2EF)); Text(state, color = color, fontWeight = FontWeight.Bold) }
+private fun ModsScreen(version: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var query by remember { mutableStateOf("") }
+    var loader by remember { mutableStateOf("fabric") }
+    var results by remember { mutableStateOf<List<ModrinthService.ModResult>>(emptyList()) }
+    var message by remember { mutableStateOf("") }
+    Column(modifier.fillMaxSize().padding(20.dp)) {
+        Text("Mod Manager", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+        Text("Modrinth • $version", color = Accent2)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("نام مود") })
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(loader == "fabric", { loader = "fabric" }, label = { Text("Fabric") })
+            FilterChip(loader == "forge", { loader = "forge" }, label = { Text("Forge") })
+            FilterChip(loader == "neoforge", { loader = "neoforge" }, label = { Text("NeoForge") })
+        }
+        Button(onClick = {
+            if (query.isBlank()) return@Button
+            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                try { val found = ModrinthService(MinecraftPaths(context)).search(query, version, loader); withContext(Dispatchers.Main) { results = found; message = "${found.size} نتیجه" } }
+                catch (t: Throwable) { withContext(Dispatchers.Main) { message = t.message ?: "خطا" } }
+            }
+        }, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) { Text("جستجو در Modrinth") }
+        Text(message, color = Color(0xFF9BA3B5))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(results) { mod ->
+                Card(colors = CardDefaults.cardColors(containerColor = SurfaceDark), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(mod.title, color = Color.White, fontWeight = FontWeight.Bold); Text(mod.description, color = Color(0xFF9BA3B5), maxLines = 2) }
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                                try { ModrinthService(MinecraftPaths(context)).installLatest(mod.projectId, version, loader); withContext(Dispatchers.Main) { message = "${mod.title} نصب شد" } }
+                                catch (t: Throwable) { withContext(Dispatchers.Main) { message = t.message ?: "خطای نصب" } }
+                            }
+                        }) { Text("نصب") }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Column(modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(icon, null, tint = Accent2, modifier = Modifier.size(54.dp))
+private fun SettingsScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("launcher", 0) }
+    var memory by remember { mutableIntStateOf(prefs.getInt("memory", 2048)) }
+    var width by remember { mutableIntStateOf(prefs.getInt("width", 1280)) }
+    var height by remember { mutableIntStateOf(prefs.getInt("height", 720)) }
+    Column(modifier.fillMaxSize().padding(20.dp)) {
+        Text("تنظیمات لانچر", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+        Text("تنظیمات ذخیره می‌شوند و در اجرای بعدی استفاده خواهند شد.", color = Color(0xFF9BA3B5))
         Spacer(Modifier.height(18.dp))
-        Text(title, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("این بخش در معماری اصلی لانچر قرار گرفته و بعد از هسته اجرا کامل می‌شود.", color = Color(0xFF9BA3B5))
+        Text("RAM: ${memory}MB", color = Color.White)
+        Slider(value = memory.toFloat(), onValueChange = { memory = (it / 256).toInt() * 256 }, valueRange = 1024f..8192f, steps = 27, onValueChangeFinished = { prefs.edit().putInt("memory", memory).apply() })
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(width.toString(), { width = it.toIntOrNull() ?: width; prefs.edit().putInt("width", width).apply() }, Modifier.weight(1f), label = { Text("Width") })
+            OutlinedTextField(height.toString(), { height = it.toIntOrNull() ?: height; prefs.edit().putInt("height", height).apply() }, Modifier.weight(1f), label = { Text("Height") })
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("Java و تنظیمات JVM بر اساس نسخه Minecraft مدیریت می‌شوند.", color = Color(0xFF9BA3B5))
+    }
+}
+
+@Composable
+private fun StatusCard(title: String, state: String, color: Color) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = SurfaceDark)) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(title, color = Color(0xFFDDE2EF)); Text(state, color = color, fontWeight = FontWeight.Bold) }
     }
 }
