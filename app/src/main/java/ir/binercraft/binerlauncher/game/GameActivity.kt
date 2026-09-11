@@ -24,7 +24,6 @@ class GameActivity : Activity(), GameSurfaceView.Listener {
                 android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
                 android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
             )
-
         root = FrameLayout(this)
         gameSurface = GameSurfaceView(this).also { it.listener = this }
         touchHud = TouchHudView(this)
@@ -33,13 +32,8 @@ class GameActivity : Activity(), GameSurfaceView.Listener {
         setContentView(root)
     }
 
-    override fun onSurfaceReady(surfaceHolder: SurfaceHolder) {
-        NativeBridge.attachSurface(surfaceHolder.surface)
-    }
-
-    override fun onSurfaceReleased() {
-        NativeBridge.detachSurface()
-    }
+    override fun onSurfaceReady(surfaceHolder: SurfaceHolder) = NativeBridge.attachSurface(surfaceHolder.surface)
+    override fun onSurfaceReleased() = NativeBridge.detachSurface()
 
     override fun onTouch(event: MotionEvent): Boolean {
         NativeBridge.dispatchTouch(event.actionMasked, event.x, event.y)
@@ -49,5 +43,10 @@ class GameActivity : Activity(), GameSurfaceView.Listener {
     override fun onDestroy() {
         NativeBridge.detachSurface()
         super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_VERSION = "version"
+        const val EXTRA_PID = "pid"
     }
 }
