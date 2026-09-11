@@ -31,17 +31,16 @@ class LaunchGameActivity : ComponentActivity() {
 
         launchScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     LaunchOrchestrator(this@LaunchGameActivity).launch(version, username, uuid) { message ->
                         runOnUiThread { status.text = message }
                     }
                 }
 
-                // The Java process owns Minecraft's lifetime. The game screen is switched in
-                // immediately so the Android surface/HUD is ready while the JVM continues.
+                // The Android game surface is prepared after the launcher has completed
+                // downloading and preparing the selected Minecraft runtime/files.
                 val game = Intent(this@LaunchGameActivity, GameActivity::class.java).apply {
                     putExtra(GameActivity.EXTRA_VERSION, version)
-                    putExtra(GameActivity.EXTRA_PID, result.process.pid().toInt())
                 }
                 startActivity(game)
                 finish()
