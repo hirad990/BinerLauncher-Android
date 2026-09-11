@@ -5,47 +5,30 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.KeyEvent
 import ir.binercraft.binerlauncher.nativebridge.NativeBridge
 import org.json.JSONArray
 
-private data class RuntimeHudKey(
-    val code: Int,
-    val label: String,
-    var x: Float,
-    var y: Float,
-    var w: Float,
-    var h: Float,
-    var opacity: Float
-)
+private data class RuntimeHudKey(val code: Int, val label: String, var x: Float, var y: Float, var w: Float, var h: Float, var opacity: Float)
 
-/**
- * Runtime touch HUD. It uses the exact Android KeyEvent codes stored by the HUD editor,
- * so the same layout can be used by the game screen and the editor.
- */
 class TouchHudView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val prefs = context.getSharedPreferences("biner_hud", Context.MODE_PRIVATE)
     private val keys = mutableListOf<RuntimeHudKey>()
-    private val held = HashSet<Int>()
+    private val pointerKeys = HashMap<Int, RuntimeHudKey>()
 
-    init {
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-        load()
-    }
+    init { setLayerType(View.LAYER_TYPE_SOFTWARE, null); isClickable = true; load() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         for (key in keys) {
-            val down = held.contains(key.code)
-            paint.color = Color.argb(
-                ((if (down) key.opacity + .12f else key.opacity).coerceIn(.15f, 1f) * 255).toInt(),
-                28, 35, 52
-            )
+            val down = pointerKeys.values.any { it === key }
+            val alpha = (if (down) key.opacity + .12f else key.opacity).coerceIn(.15f, 1f)
+            paint.color = Color.argb((alpha * 255).toInt(), 28, 35, 52)
             canvas.drawRoundRect(RectF(key.x, key.y, key.x + key.w, key.y + key.h), 14f, 14f, paint)
-            paint.color = Color.argb(210, 255, 255, 255)
+            paint.color = Color.argb(220, 255, 255, 255)
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = if (down) 3f else 1.5f
             canvas.drawRoundRect(RectF(key.x, key.y, key.x + key.w, key.y + key.h), 14f, 14f, paint)
@@ -60,22 +43,19 @@ class TouchHudView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                val pointer = event.actionIndex
-                pressAt(event.getX(pointer), event.getY(pointer))
-                return true
+                val i = event.actionIndex
+                press(event.getPointerId(i), event.getX(i), event.getY(i))
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
-                val pointer = event.actionIndex.coerceAtMost(event.pointerCount - 1)
-                releaseAt(event.getX(pointer), event.getY(pointer))
-                return true
-            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> release(event.getPointerId(event.actionIndex))
+            MotionEvent.ACTION_CANCEL -> pointerKeys.keys.toList().forEach(::release)
         }
         return true
     }
 
-    private fun pressAt(x: Float, y: Float) {
+    private fun press(pointerId: Int, x: Float, y: Float) {
+        if (pointerKeys.containsKey(pointerId)) return
         val key = keys.lastOrNull { x in it.x..(it.x + it.w) && y in it.y..(it.y + it.h) } ?: return
-        if (!held.add(key.code)) return
+        pointerKeys[pointerId] = key
         when (key.code) {
             MOUSE_LEFT -> NativeBridge.mouseDown(0)
             MOUSE_RIGHT -> NativeBridge.mouseDown(1)
@@ -87,9 +67,8 @@ class TouchHudView(context: Context) : View(context) {
         invalidate()
     }
 
-    private fun releaseAt(x: Float, y: Float) {
-        val key = keys.lastOrNull { x in it.x..(it.x + it.w) && y in it.y..(it.y + it.h) } ?: return
-        if (!held.remove(key.code)) return
+    private fun release(pointerId: Int) {
+        val key = pointerKeys.remove(pointerId) ?: return
         when (key.code) {
             MOUSE_LEFT -> NativeBridge.mouseUp(0)
             MOUSE_RIGHT -> NativeBridge.mouseUp(1)
@@ -106,12 +85,7 @@ class TouchHudView(context: Context) : View(context) {
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
-                keys += RuntimeHudKey(
-                    o.getInt("code"), o.getString("label"),
-                    o.getDouble("x").toFloat(), o.getDouble("y").toFloat(),
-                    o.getDouble("w").toFloat(), o.getDouble("h").toFloat(),
-                    o.optDouble("opacity", .78).toFloat()
-                )
+                keys += RuntimeHudKey(o.getInt("code"), o.getString("label"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getDouble("w").toFloat(), o.getDouble("h").toFloat(), o.optDouble("opacity", .78).toFloat())
             }
         }
         if (keys.isEmpty()) addDefaultLayout()
