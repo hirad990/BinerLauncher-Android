@@ -1,5 +1,6 @@
 package ir.binercraft.binerlauncher.game
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
@@ -17,7 +18,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class LaunchGameActivity : ComponentActivity() {
-    private var process: Process? = null
     private val launchScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var status: TextView
 
@@ -36,10 +36,15 @@ class LaunchGameActivity : ComponentActivity() {
                         runOnUiThread { status.text = message }
                     }
                 }
-                process = result.process
-                withContext(Dispatchers.IO) {
-                    result.process.inputStream.bufferedReader().useLines { lines -> lines.forEach { android.util.Log.i("BinerMinecraft", it) } }
+
+                // The Java process owns Minecraft's lifetime. The game screen is switched in
+                // immediately so the Android surface/HUD is ready while the JVM continues.
+                val game = Intent(this@LaunchGameActivity, GameActivity::class.java).apply {
+                    putExtra(GameActivity.EXTRA_VERSION, version)
+                    putExtra(GameActivity.EXTRA_PID, result.process.pid().toInt())
                 }
+                startActivity(game)
+                finish()
             } catch (error: Throwable) {
                 android.util.Log.e("BinerLauncher", "Minecraft launch failed", error)
                 runOnUiThread { status.text = "Launch failed\n${error.message ?: error.javaClass.simpleName}" }
@@ -48,7 +53,12 @@ class LaunchGameActivity : ComponentActivity() {
     }
 
     private fun showLoading(message: String) {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(40, 40, 40, 40); setBackgroundColor(Color.rgb(8, 10, 16)) }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(40, 40, 40, 40)
+            setBackgroundColor(Color.rgb(8, 10, 16))
+        }
         val title = TextView(this).apply { text = "BINER LAUNCHER"; textSize = 28f; setTextColor(Color.WHITE); gravity = Gravity.CENTER }
         status = TextView(this).apply { text = message; textSize = 17f; setTextColor(Color.rgb(34, 211, 238)); gravity = Gravity.CENTER; setPadding(0, 24, 0, 20) }
         val progress = ProgressBar(this).apply { isIndeterminate = true }
@@ -56,7 +66,7 @@ class LaunchGameActivity : ComponentActivity() {
         setContentView(root)
     }
 
-    override fun onDestroy() { launchScope.cancel(); process?.takeIf { it.isAlive }?.destroy(); process = null; super.onDestroy() }
+    override fun onDestroy() { launchScope.cancel(); super.onDestroy() }
 
     companion object {
         const val EXTRA_VERSION = "version"
