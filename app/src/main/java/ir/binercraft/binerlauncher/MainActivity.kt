@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ir.binercraft.binerlauncher.core.MinecraftVersion
@@ -61,6 +62,7 @@ fun BinerLauncherApp() {
 
 @Composable
 private fun HomeScreen(version: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     LazyColumn(modifier.fillMaxSize().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Spacer(Modifier.height(18.dp))
@@ -78,7 +80,7 @@ private fun HomeScreen(version: String, modifier: Modifier = Modifier) {
                     }
                     Spacer(Modifier.height(18.dp))
                     Button(onClick = {
-                        startActivity(Intent(this@MainActivity, LaunchGameActivity::class.java).apply {
+                        context.startActivity(Intent(context, LaunchGameActivity::class.java).apply {
                             putExtra(LaunchGameActivity.EXTRA_VERSION, version)
                             putExtra(LaunchGameActivity.EXTRA_USERNAME, "BinerPlayer")
                             putExtra(LaunchGameActivity.EXTRA_UUID, "00000000-0000-0000-0000-000000000000")
