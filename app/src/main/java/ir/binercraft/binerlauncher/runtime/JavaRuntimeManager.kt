@@ -31,7 +31,7 @@ class JavaRuntimeManager(private val context: Context) {
     fun javaExecutable(javaMajor: Int): File = File(runtimeRoot(javaMajor), "bin/java")
     fun inspect(javaMajor: Int): RuntimeInfo = RuntimeInfo(javaMajor, runtimeRoot(javaMajor), javaExecutable(javaMajor), isInstalled(javaMajor))
     fun isInstalled(javaMajor: Int): Boolean = javaExecutable(javaMajor).isFile && javaExecutable(javaMajor).canExecute()
-    fun installedJavaVersions(): List<Int> = listOf(8, 17, 21).filter(::isInstalled)
+    fun installedJavaVersions(): List<Int> = listOf(8, 17, 21, 25).filter(::isInstalled)
 
     fun currentAbi(): String = when {
         Build.SUPPORTED_ABIS.any { it == "arm64-v8a" } -> "arm64"
@@ -100,7 +100,7 @@ class JavaRuntimeManager(private val context: Context) {
                 if (offset > 0) setRequestProperty("Range", "bytes=$offset-")
             }
             connection.connect()
-            var append = offset > 0 && connection.responseCode == HttpURLConnection.HTTP_PARTIAL
+            val append = offset > 0 && connection.responseCode == HttpURLConnection.HTTP_PARTIAL
             if (!append) {
                 if (offset > 0) destination.delete()
                 offset = 0
