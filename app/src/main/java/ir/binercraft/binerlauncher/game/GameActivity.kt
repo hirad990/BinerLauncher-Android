@@ -32,7 +32,10 @@ class GameActivity : Activity(), GameSurfaceView.Listener {
         setContentView(root)
     }
 
-    override fun onSurfaceReady(surfaceHolder: SurfaceHolder) = NativeBridge.attachSurface(surfaceHolder.surface)
+    override fun onSurfaceReady(surfaceHolder: SurfaceHolder) {
+        NativeBridge.attachSurface(surfaceHolder.surface)
+    }
+
     override fun onSurfaceReleased() = NativeBridge.detachSurface()
 
     override fun onTouch(event: MotionEvent): Boolean {
