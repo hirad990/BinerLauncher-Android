@@ -31,16 +31,19 @@ class LaunchGameActivity : ComponentActivity() {
 
         launchScope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                val result = withContext(Dispatchers.IO) {
                     LaunchOrchestrator(this@LaunchGameActivity).launch(version, username, uuid) { message ->
                         runOnUiThread { status.text = message }
                     }
                 }
 
-                // The Android game surface is prepared after the launcher has completed
-                // downloading and preparing the selected Minecraft runtime/files.
+                if (!result.process.isAlive) {
+                    error("Minecraft process exited immediately (exit=${result.process.exitValue()})")
+                }
+
                 val game = Intent(this@LaunchGameActivity, GameActivity::class.java).apply {
                     putExtra(GameActivity.EXTRA_VERSION, version)
+                    putExtra(GameActivity.EXTRA_PID, result.process.pid())
                 }
                 startActivity(game)
                 finish()
