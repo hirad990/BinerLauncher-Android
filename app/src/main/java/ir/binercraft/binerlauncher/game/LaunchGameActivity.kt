@@ -1,8 +1,8 @@
 package ir.binercraft.binerlauncher.game
 
-import android.app.Activity
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import ir.binercraft.binerlauncher.minecraft.LaunchOrchestrator
 import kotlinx.coroutines.Dispatchers
@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Launches the installed Minecraft process and keeps the game surface alive. */
-class LaunchGameActivity : Activity() {
+class LaunchGameActivity : ComponentActivity() {
     private var process: Process? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,7 +33,11 @@ class LaunchGameActivity : Activity() {
                     )
                 }
                 process = result.process
-                withContext(Dispatchers.IO) { result.process.inputStream.bufferedReader().useLines { lines -> lines.forEach { android.util.Log.i("BinerMinecraft", it) } } }
+                withContext(Dispatchers.IO) {
+                    result.process.inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { android.util.Log.i("BinerMinecraft", it) }
+                    }
+                }
             } catch (error: Throwable) {
                 android.util.Log.e("BinerLauncher", "Minecraft launch failed", error)
                 finish()
