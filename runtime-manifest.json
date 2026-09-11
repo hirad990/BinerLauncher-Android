@@ -1,0 +1,18 @@
+{
+  "runtimes": [
+    {"major":8,"version":"8u","abi":"arm64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre8/jre8-android-arm64.tar.xz","sha256":"9a59124d9791957d55c68be664ab76831f336cf2e1e1cd4414220c6fdbf0e06d","archive":"tar.xz"},
+    {"major":8,"version":"8u","abi":"arm","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre8/jre8-android-arm.tar.xz","sha256":"9dbee3b09af5f170e2ed9dd596bc81d0e573c88f8bf760c59c8fadbb9073d1e7","archive":"tar.xz"},
+    {"major":8,"version":"8u","abi":"x86","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre8/jre8-android-x86.tar.xz","sha256":"b96ce49fab52b28688dccc1a7d85dfc6d0f4048636aac826e1967524b28f75af","archive":"tar.xz"},
+    {"major":8,"version":"8u","abi":"x86_64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre8/jre8-android-x86_64.tar.xz","sha256":"b1fbcef4965c17925894febe8216d089c6dd47b37950b5f945a89616443c1d0e","archive":"tar.xz"},
+
+    {"major":17,"version":"17","abi":"arm64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre17/jre17-android-arm64.tar.xz","sha256":"e162c860fe05ee4a4e4af7606437419879f6c748386a7b09fa77d10db6a64091","archive":"tar.xz"},
+    {"major":17,"version":"17","abi":"arm","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre17/jre17-android-arm.tar.xz","sha256":"4a9134f1ebf6340dd855805d351712462cddab6f3c2684da7e7da10ccf06648d","archive":"tar.xz"},
+    {"major":17,"version":"17","abi":"x86","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre17/jre17-android-x86.tar.xz","sha256":"223a2d54606a9eb853c8451cf1d6bda1a8f09cb357f40b790140e57d45731ed7","archive":"tar.xz"},
+    {"major":17,"version":"17","abi":"x86_64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre17/jre17-android-x86_64.tar.xz","sha256":"893e27d2aed8b40407f29fe939e2a0f193e5d55f72892a303db634b0808a2b61","archive":"tar.xz"},
+
+    {"major":21,"version":"21","abi":"arm64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre21/jre21-android-arm64.tar.xz","sha256":"8d41ec401ee59f7722df60ed991f81ad146e130452804bfdd8a05d3436f7bbfe","archive":"tar.xz"},
+    {"major":21,"version":"21","abi":"arm","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre21/jre21-android-arm.tar.xz","sha256":"96c297487def64666e379a9a363d9955c05b1a0b091b0cf24af88359a66f394a","archive":"tar.xz"},
+    {"major":21,"version":"21","abi":"x86","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre21/jre21-android-x86.tar.xz","sha256":"9b8c7d10c5f751acb3b33506593da44ece52a0fd03e0b3c283ba08a7f285a40f","archive":"tar.xz"},
+    {"major":21,"version":"21","abi":"x86_64","url":"https://github.com/AngelAuraMC/angelauramc-openjdk-build/releases/download/download_jre21/jre21-android-x86_64.tar.xz","sha256":"cb88723961f5f9ad63afa1f212eb199816c27cabfd7dc66567bde1d8fb69713b","archive":"tar.xz"}
+  ]
+}
