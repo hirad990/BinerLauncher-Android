@@ -43,7 +43,6 @@ class LaunchGameActivity : ComponentActivity() {
 
                 val game = Intent(this@LaunchGameActivity, GameActivity::class.java).apply {
                     putExtra(GameActivity.EXTRA_VERSION, version)
-                    putExtra(GameActivity.EXTRA_PID, result.process.pid())
                 }
                 startActivity(game)
                 finish()
