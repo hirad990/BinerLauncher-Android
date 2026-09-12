@@ -36,7 +36,9 @@ class GameActivity : Activity(), GameSurfaceView.Listener {
         NativeBridge.attachSurface(surfaceHolder.surface)
     }
 
-    override fun onSurfaceReleased() = NativeBridge.detachSurface()
+    override fun onSurfaceReleased() {
+        NativeBridge.detachSurface()
+    }
 
     override fun onTouch(event: MotionEvent): Boolean {
         NativeBridge.dispatchTouch(event.actionMasked, event.x, event.y)
